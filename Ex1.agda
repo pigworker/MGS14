@@ -15,8 +15,8 @@ su x +N' y = x +N' su y
    then removing the comments left-to-right one-by-one -}
 
 lemma+N' : forall x y -> su x +N' y == su (x +N' y)
-lemma+N' ze y = refl
-lemma+N' (su x) y rewrite lemma+N' x (su y) = refl
+lemma+N' ze y = {!{- refl -}!}
+lemma+N' (su x) y {-rewrite lemma+N' x (su y)-} = {!{- refl -}!}
 
 
 {- 1.2 Check that you can use "rewrite" to push vector concatenation
