@@ -41,9 +41,15 @@ chop (su m)  (x , xs)  |     ys , zs    = {!!}
 
 {- Recall zapp and vec -}
 
+{-
 zapp : forall {n S T} -> Vec (S -> T) n -> Vec S n -> Vec T n
 zapp [] [] = []
 zapp (f , fs) (s , ss) = f s , zapp fs ss
+-}
+
+zapp : forall {n S T} -> Vec (S -> T) n -> Vec S n -> Vec T n
+zapp [] ss = []
+zapp (x , x₁) (x₂ , x₃) = x x₂ , zapp x₁ x₃
 
 vec : forall {n X} -> X -> Vec X n
 vec {ze} x = []
