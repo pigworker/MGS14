@@ -27,6 +27,7 @@ data Zero : Set where
 data _+_ (S T : Set) : Set where
   inl : S -> S + T
   inr : T -> S + T
+infixr 3 _+_
 
 record One : Set where constructor <>
 
