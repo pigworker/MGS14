@@ -1,4 +1,4 @@
-module Ex2 where
+module Sol2 where
 
 open import Basics
 open import Lec2
@@ -34,8 +34,10 @@ data Ne G T where
 
 renameNm : forall {G D} -> Ren G D -> forall {T} -> Nm G T -> Nm D T
 renameNe : forall {G D} -> Ren G D -> forall {T} -> Ne G T -> Ne D T
-renameNm f t = {!!}
-renameNe f t = {!!}
+renameNm f (lam t)  = lam (renameNm (weak REN f) t)
+renameNm f [ t ]    = [ renameNe f t ]
+renameNe f (var x)  = var (f x)
+renameNe f (g $ s)  = renameNe f g $ renameNm f s
 
 
 {- 2.2 context extensions -}
@@ -52,10 +54,12 @@ infixl 3 _<><_
 -- as a renaming from the shorter to the longer
 
 _<><_ : Ctx -> Ext -> Ctx
-G <>< D = {!!}
+G <>< []     = G
+G <>< S , D  = G / S <>< D
 
 sucFish : forall {G} X -> Ren G (G <>< X)
-sucFish X x = {!!}
+sucFish []       x = x
+sucFish (S , X)  x = sucFish X (su x)
 -- the clue is in the name
 
 
@@ -80,7 +84,11 @@ Go G (S >> T)   -- function type values can compute...
 -- your turn: show that the model admits weakening
 
 wModel : forall {G} T X -> Model G T -> Model (G <>< X) T
-wModel T X t = {!!}
+wModel iota      X        (inl ())
+wModel (S >> T)  []       (inl f)   = inl f
+wModel (S >> T)  (R , X)  (inl f)
+  = wModel (S >> T) X (inl (\ Y -> f (R , Y)))
+wModel T         X        (inr t)   = inr (renameNe (sucFish X) t)
 
 
 {- 2.4 application (how to go) and quotation (how to stop) -}
@@ -92,9 +100,13 @@ _$$_ : forall {G S T} -> Model G (S >> T) -> Model G S -> Model G T
 stop : forall {G T} -> Model G T -> Nm G T
 -- hint: the fact that I've declared them together may be significant
 
-f $$ s = {!!}
+inl f $$ s = f [] s
+inr f $$ s = inr (f $ stop s)
 
-stop {G} {T} t = {!!}
+stop {G} {iota}    (inl ())
+stop {G} {iota}    (inr t)   = [ t ]
+stop {G} {S >> T}  f
+  = lam (stop (wModel (S >> T) (S , []) f $$ inr (var ze)))
 
 
 {- 2.5 environments -}
@@ -103,26 +115,27 @@ stop {G} {T} t = {!!}
 -- MEnv G D should store a Model D T for each T in G
 
 MEnv : Ctx -> Ctx -> Set
-MEnv G D  = {!!}
+MEnv G D  = forall {T} -> T <: G -> Model D T   -- or build a tuple
 
 -- equip your notion of environment with projection
 
 mget : forall {G D T} -> T <: G -> MEnv G D -> Model D T
-mget x g = {!!}
+mget x g = g x
 
 -- equip your notion of environment with extension by one value
 mpush : forall {G D S} -> MEnv G D -> Model D S -> MEnv (G / S) D
-mpush g s = {!!}
+mpush g s ze      = s
+mpush g s (su x)  = g x
 
 -- equip your notion of environment with weakening
 
 wMEnv : forall {G} {D} X -> MEnv G D -> MEnv G (D <>< X)
-wMEnv X g = {!!}
+wMEnv X g = wModel _ X o g
 
 -- construct the identity environment, modelling each free variable as itself
 
 idMEnv : forall {G} -> MEnv G G
-idMEnv = {!!}
+idMEnv = inr o var
 
 
 {- 2.6 evaluation and normalization -}
@@ -131,13 +144,15 @@ idMEnv = {!!}
 -- environment for its context
 
 model : forall {G T} -> G |- T -> forall {D} -> MEnv G D -> Model D T
-model t g = {!!}
+model (var x) g = mget x g
+model (f $ s) g = model f g $$ model s g
+model (lam t) g = inl \ X s -> model t (mpush (wMEnv X g) s)
 
 -- put the pieces together and give a (one line) normalization function for open
 -- terms
 
 normal : forall {G T} -> G |- T -> Nm G T
-normal t = {!!}
+normal t = stop (model t idMEnv)
 
 
 {- 2.7 have fun computing; here's a start -}
