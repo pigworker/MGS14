@@ -1,4 +1,4 @@
-module Lec2 (A : Set) where
+module Lec2 where
 
 open import Basics
 
@@ -10,7 +10,7 @@ data Ty : Set where
 infixr 5 _>>_
 
 Val : Ty -> Set
-Val iota = A
+Val iota = Nat -- I gave in, in the end
 Val (S >> T) = Val S -> Val T
 
 data Ctx : Set where
@@ -34,29 +34,29 @@ get : forall {G T} -> T <: G -> Env G -> Val T
 get ze (g , t) = t
 get (su x) (g , s) = get x g
 
-infix 3 _!-_
+infix 3 _|-_
 infixl 4 _$_
-data _!-_ (G : Ctx) : Ty -> Set where
+data _|-_ (G : Ctx) : Ty -> Set where
 
   var : forall {T}
 
         ->  T <: G
         -------------
-        ->  G !- T
+        ->  G |- T
 
   _$_ : forall {S T}
 
-        ->  G !- S >> T   ->  G !- S
+        ->  G |- S >> T   ->  G |- S
         -------------------------------
-        ->  G !- T
+        ->  G |- T
 
   lam : forall {S T}
 
-        ->  G / S !- T
+        ->  G / S |- T
         ------------------
-        ->  G !- S >> T
+        ->  G |- S >> T
 
-eval : forall {G T} -> G !- T -> Env G -> Val T
+eval : forall {G T} -> G |- T -> Env G -> Val T
 eval (var x) g = get x g
 eval (f $ s) g = (eval f g) (eval s g)
 eval (lam t) g = \ s -> eval t (g , s)
@@ -67,38 +67,41 @@ eval (lam t) g = \ s -> eval t (g , s)
 record Kit (Im : Ctx -> Ty -> Set) : Set where
   constructor kit
   field
-    kTm : forall {G T} -> Im G T -> G !- T
+    kTm : forall {G T} -> Im G T -> G |- T
     kVa : forall {G T} -> T <: G -> Im G T
     kWk : forall {G T S} -> Im G T -> Im (G / S) T
-open Kit
-
-weak : forall {Im} -> Kit Im ->
-  {G D : Ctx} ->
-  ({T : Ty} -> T <: G -> Im D T) ->
-  {S : Ty} ->
-  ({T : Ty} -> T <: G / S -> Im (D / S) T)
-weak k f ze = kVa k ze
-weak k f (su x) = kWk k (f x)
-
+  weak : 
+    {G D : Ctx} ->
+    ({T : Ty} -> T <: G -> Im D T) ->
+    {S : Ty} ->
+    ({T : Ty} -> T <: G / S -> Im (D / S) T)
+  weak f ze = kVa ze
+  weak f (su x) = kWk (f x)
+open Kit public
 
 replace : forall {Im} -> Kit Im ->
   {G D : Ctx} ->
   ({T : Ty} -> T <: G -> Im D T) ->
-   {T : Ty} -> G !- T -> D !- T
+   {T : Ty} -> G |- T -> D |- T
 replace k f (var x) = kTm k (f x)
 replace k f (g $ s) = replace k f g $ replace k f s
 replace k f (lam t) = lam (replace k (weak k f) t)
-  
 
-rename : {G D : Ctx} ->
-  ({T : Ty} -> T <: G -> T <: D) ->
-   {T : Ty} -> G !- T -> D !- T
-rename = replace {\ D T -> T <: D}
-  (kit var id su )
+Ren : Ctx -> Ctx -> Set
+Ren G D = {T : Ty} -> T <: G -> T <: D
 
-subst : {G D : Ctx} ->
-  ({T : Ty} -> T <: G -> D !- T) ->
-   {T : Ty} -> G !- T -> D !- T
-subst = replace {_!-_}
-  (kit id var (rename su))
+REN : Kit \ G T -> T <: G
+REN = kit var id su  
+
+rename : {G D : Ctx} -> Ren G D -> {T : Ty} -> G |- T -> D |- T
+rename = replace REN
+
+Sub : Ctx -> Ctx -> Set
+Sub G D = {T : Ty} -> T <: G -> D |- T
+
+SUB : Kit \ G T -> G |- T
+SUB = kit id var (rename su)
+
+subst : {G D : Ctx} -> Sub G D -> {T : Ty} -> G |- T -> D |- T
+subst = replace SUB
 
