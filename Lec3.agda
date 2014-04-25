@@ -6,25 +6,34 @@ open import Basics
 -- (1) ordering invariants
 -- (2) datatype generic programming
 
-postulate  -- abstract for now, but could pick numbers, etc
-  K : Set                                      -- the set of keys
-  _<K=_ : K -> K -> Set                        -- ordering for keys
-  total : (j k : K) -> (j <K= k) + (k <K= j)   -- totality of <K=
+K : Set                                      -- the set of keys
+K = Nat
+_<K=_ : K -> K -> Set                        -- ordering for keys
+ze <K= y = One
+su x <K= ze = Zero
+su x <K= su y = x <K= y
+total : (j k : K) -> (j <K= k) + (k <K= j)   -- totality of <K=
+total ze y = inl <>
+total (su x) ze = inr <>
+total (su x) (su y) = total x y
 
 -- how to describe the node structure of simple datatypes containing keys
 
 data U : Set where
-  `Rec `1 `K : U
-  _`+_ _`*_ : U -> U -> U
+  `Rec `1 : U
+  _`+_ _`*K*_ : U -> U -> U
 infixr 3 _`+_
-infixr 4 _`*_
+infixr 4 _`*K*_
 
 -- if we know what can go in recursive positions, we can say what is the
 -- set of nodes with a given structure
 
 infixr 6 _%_
 _%_ : U -> Set -> Set
-T % Rec = Rec
+`Rec % Rec = Rec
+`1 % Rec = One
+(S `+ T) % Rec = S % Rec + T % Rec
+(S `*K* T) % Rec = S % Rec * K * T % Rec
 
 -- tying the knot
 
@@ -34,38 +43,42 @@ data Mu (T : U) : Set where
 -- examples
 
 LIST : U
-LIST = `1 `+ `K `* `Rec
+LIST = `1 `+ `1 `*K* `Rec
 
-nil : Mu LIST
-nil = {!!}
+-- nil : Mu LIST
+pattern nil = [ inl <> ]
 
-_::_ : K -> Mu LIST -> Mu LIST
-_::_ k ks = {!!}
+-- _::_ : K -> Mu LIST -> Mu LIST
+pattern _::_ k ks = [ inr (<> , k , ks) ]
 infixr 4 _::_
 
 TREE : U
-TREE = `1 `+ `Rec `* `K `* `Rec
+TREE = `1 `+ `Rec `*K* `Rec
 
 leaf : Mu TREE
-leaf = {!!}
+leaf = [ inl <> ]
 
 node : Mu TREE -> K -> Mu TREE -> Mu TREE
-node l k r = {!!}
+node l k r = [ inr (l , k , r) ]
 
 -- a datatype-specific program
 
 _++_ : Mu LIST -> Mu LIST -> Mu LIST
-xs ++ ys = {!!}
+nil ++ ys = ys
+(x :: xs) ++ ys = x :: (xs ++ ys)
 
 -- a datatype-generic program
 
 list : forall {R} -> Mu R -> Mu LIST
 list {R} [ r ] = go R r where
   go : forall T -> T % Mu R -> Mu LIST
-  go T t = {!!}
+  go `Rec t = list t
+  go `1 <> = nil
+  go (S `+ T) (inl s) = go S s
+  go (S `+ T) (inr t) = go T t
+  go (S `*K* T) (s , k , t) = go S s ++ (k :: go T t)
 
 
-{- uncomment to end of file
 
 -- to work with ordering invariants, first extend K with extrema
 
@@ -78,7 +91,11 @@ data K^ : Set where
 
 infixr 9 _<=_
 _<=_ : K^ -> K^ -> Set
-x <= y = {!!}
+bot <= _ = One
+_ <= bot = Zero
+key x <= key y = x <K= y
+_ <= top = One
+top <= _ = Zero
 
 -- now let us define *locally* ordered *bounded* data, where
 --   the lower bound is below the first element
@@ -87,16 +104,17 @@ x <= y = {!!}
 --   the last element is below the upper bound
 
 _%%_[_-_] : U -> (K^ -> K^ -> Set) -> K^ -> K^ -> Set
-T %% Rec [ l - u ] = {!!}
+`Rec %% Rec [ l - u ] = Rec l u
+`1 %% Rec [ l - u ] = l <= u
+(S `+ T) %% Rec [ l - u ] = S %% Rec [ l - u ] + T %% Rec [ l - u ]
+(S `*K* T) %% Rec [ l - u ]
+  = Sg K \ k -> S %% Rec [ l - key k ] * T %% Rec [ key k - u ]
 
-postulate OMu_[_-_] : (T : U)(l u : K^) -> Set
-{-
 data OMu_[_-_] (T : U)(l u : K^) : Set where
   [_] : T %% (OMu_[_-_] T) [ l - u ] -> OMu T [ l - u ]
--}
 
 KEY : U
-KEY = {!!}
+KEY = `1 `*K* `1
 
 {- get me when you need me
 ! : {X : Set}{{x : X}} -> X
@@ -107,30 +125,38 @@ KEY = {!!}
 
 insertL : forall {l u} ->
   OMu KEY [ l - u ] -> OMu LIST [ l - u ] -> OMu LIST [ l - u ]
-insertL k ks = {!!}
+insertL [ k , lk , ku ] [ inl lu ] = [ inr (k , lk , [ inl ku ]) ]
+insertL [ k , lk , ku ] [ inr (j , lj , ju) ] with total k j
+insertL [ k , lk , ku ] [ inr (j , lj , ju) ] | inl kj
+  = [ inr (k , lk , [ inr (j , kj , ju) ]) ]
+insertL [ k , lk , ku ] [ inr (j , lj , ju) ] | inr jk
+  = [ inr (j , lj , insertL [ k , jk , ku ] ju) ]
 
-{-
 insertSort : Mu LIST -> OMu LIST [ bot - top ]
 insertSort nil        = [ inl <> ]
 insertSort (k :: ks)  = insertL [ k , <> , <> ] (insertSort ks)
--}
+
 
 -- enough abstraction: take K to be Nat
 
-{-
 myList : Mu LIST
 myList = 20 :: 1 :: 18 :: 4 :: 13 :: 6 :: 10 :: 15 :: 2 :: 17 ::
          3 :: 19 :: 7 :: 16 :: 8 :: 11 :: 14 :: 9 :: 12 :: 5 :: nil
--}
 
 -- insertion for search trees
 
 insertT : forall {l u} ->
   OMu KEY [ l - u ] -> OMu TREE [ l - u ] -> OMu TREE [ l - u ]
-insertT k t = {!!}
+insertT [ k , lk , ku ] [ inl lu ] = [ inr (k , [ inl lk ] , [ inl ku ]) ]
+insertT [ k , lk , ku ] [ inr (j , lj , ju) ] with total k j
+insertT [ k , lk , ku ] [ inr (j , lj , ju) ] | inl kj
+  = [ inr (j , insertT [ k , lk , kj ] lj , ju) ]
+insertT [ k , lk , ku ] [ inr (j , lj , ju) ] | inr jk
+  = [ inr (j , lj , insertT [ k , jk , ku ] ju) ]
 
 makeT : Mu LIST -> OMu TREE [ bot - top ]
-makeT ks = {!!}
+makeT nil = [ inl <> ]
+makeT (k :: ks) = insertT [ k , <> , <> ] (makeT ks)
 
 -- flattening to *ordered* lists
 
@@ -142,4 +168,3 @@ flatOne R T t = {!!}
 treeSort : Mu LIST -> OMu LIST [ bot - top ]
 treeSort = flatten o makeT
 
--}

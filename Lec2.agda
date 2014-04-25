@@ -61,7 +61,6 @@ eval (var x) g = get x g
 eval (f $ s) g = (eval f g) (eval s g)
 eval (lam t) g = \ s -> eval t (g , s)
 
-
 -- simultaneous renaming and substitution, simultaneously
 
 record Kit (Im : Ctx -> Ty -> Set) : Set where
